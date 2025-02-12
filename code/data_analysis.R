@@ -15,3 +15,10 @@ sample_data %>%
   #group the data by the envGroup
   group_by(env_group) %>%
   summarize(avg_cells = mean(cells_per_ml))
+
+#Filter: Subset data by rows based on some value
+sample_data %>%
+  #subset sample only from the deep
+  filter
+  #calculate the mean cell abundance
+  
