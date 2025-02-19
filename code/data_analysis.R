@@ -7,94 +7,136 @@ library(tidyverse)
 sample_data <-read_csv("data/sample_data.csv")
 glimpse(sample_data)
 
-#sumarize
-summarize(sample_data, avg_cells= mean(cells_per_ml))
+#summarize
+summarize(sample_data, avg_cells=mean(cells_per_ml))
 
 #syntax/style
 sample_data %>%
-  #group the data by the envGroup
-  group_by(env_group) %>%
+  #group data by environmental group
+  group_by(env_group)%>%
+  #calculate mean
+  summarize(avg_cells=mean(cells_per_ml))
+
+#filter: subset data by rows based on some value
+sample_data %>%
+  #subset samples only from the deep
+  #subset based on a logical, TRUE==1
+  filter(env_group =="Deep") %>%
+  #calculate mean cell abundances
   summarize(avg_cells = mean(cells_per_ml))
 
-#Filter: Subset data by rows based on some value
 sample_data %>%
-  #subset sample only from the deep
-  #why two eauql signs? wee will subset basen on a logical, true == 1
-  filter(temperature < 5) %>%
-  #calculate the mean cell abundance
+  #subset samples only from the deep
+  #subset based on a logical, TRUE==1
+  filter(temperature<5) %>%
+  #calculate mean cell abundances
   summarize(avg_cells = mean(cells_per_ml))
 
-#Mutate: Create a new column
+#mutate: create new column 
 sample_data %>%
-  #calc new column with the TN:TN ration
-  mutate(tn_tp_ration = total_nitrogen / total_phosphorus) %>%
+  #calculate new column with the TN:TP ratio
+  mutate(tn_tp_ratio=total_nitrogen/total_phosphorus) %>%
   #visualize it
   view()
 
-#select(): subset by entire column
-sample_data%>%
+#select():subset by entire columns
+sample_data %>%
   #pick specific columns
-  select(-c(diss_org_carbon,))
+  select(sample_id, depth)
 
-#Clean up data
-taxon_dirty <- read_csv("data/taxon_abundance.csv", skip = 2)
+#select():subset by entire columns
+sample_data %>%
+  #pick specific columns in between sample id and temperature
+  select(sample_id:depth)
 
-#only pick to the cyanobacteria
-taxon_clean <- taxon_dirty %>%
-  select(sample_id: Cyanobacteria) %>%
-#what are the wide foemat dimension? 71 rows by 7 column
-  taxon_long <- taxon_clean %>%
-  pivot_longer(cols = Proteobacteria:Cyanobacteria, 
-               names_to = "Phylum",
-               values_to = "Abundance")
+#select():subset by entire columns
+sample_data %>%
+  #pick all columns except for
+  select(-diss_org_carbon)
 
+#select():subset by entire columns
+sample_data %>%
+  #pick all columns except for
+  select(-c(diss_org_carbon,chlorophyll))
 
-taxon_long
+#clean up data
+taxon_dirty<-read_csv("data/taxon_abundance.csv", skip =2)
+head(taxon_dirty)
 
+#only pick cyanobacteria
+taxon_clean<-
+  taxon_dirty %>%
+  select(sample_id: Cyanobacteria)
+#what are the wide format dimensions?
+dim(taxon_clean)
 
-#Calculate avg abundanve of each phylum
-taxon_long %>%
-  group_by(Phylum) %>%
-  summarize(avg_abund = mean(Abundance))
-              
-#Plot our data
-taxon_long %>%
-  ggplot(aes(x = sample_id, y = Abundance, fill = Phylum)) + 
-  geom_col() + 
-  theme(axis.text.x = element_text(angle = 90))
+#shape the data from wide into long format
+taxon_long<-
+  taxon_clean%>%
+  #shap into long-formatted data frame
+  pivot_longer(cols=Proteobacteria:Cyanobacteria,
+               names_to="phylum",
+               values_to="abundance")
+#check the new dimensions:42
+dim(taxon_long)
+
+#calculate abundance by each phylum
+taxon_long%>%
+  group_by(phylum)%>%
+  summarise(avg_abund=mean(abundance))
+
+#plot our data
+taxon_long%>%
+  ggplot(aes(x=sample_id, y=abundance, fill=phylum))+
+  geom_col()+
+  theme(axis.text.x=element_text(angle=90))
 
 #joining data frames
 sample_data %>%
+  head(6)
+
+taxon_clean%>%
+  head(6)
 
 #inner join
-sample_data %>%
-  inner_join(., taxon_clean, by = "sample_id")
+sample_data%>%
+  #. represents sample data
+  inner_join(.,taxon_clean, by="sample_id")%>%
+  #this gives 32 instead of 71, only a subset, why?
+  dim()
 
 #intuition check on filtering joins
 length(unique(taxon_clean$sample_id))
 length(unique(sample_data$sample_id))
 
-#anti-join: which rows are not joining?
+#anti-join: which rows are not joining
 sample_data%>%
-  anti_join(., taxon_clean, by = "sample_id")
+  anti_join(., taxon_clean, by ="sample_id")
 
-#sixing september samples
-taxon_clean %>%
-  mutate(sample_id = str_replace(sample_id,
-                                 pattern = "Sep",
-                                 replacement = "September")
+#fixing september samples
+taxon_clean_goodSep<-
+  taxon_clean%>%
+  #replace sample_id column with fixed september names
+  mutate(sample_id= str_replace(sample_id, pattern="Sep", replacement = "September"))
 
-         
+#check dimensions
+dim(taxon_clean_goodSep)
+
+#inner join
+sample_and_taxon<-
+  sample_data%>%
+  inner_join(.,taxon_clean_goodSep, by="sample_id")
+dim(sample_and_taxon)
+
 #test
-stopifnot(nrow(sample_and_taxon) == nrow(sample_data))
+stopifnot(nrow(sample_and_taxon)== nrow(sample_data))
 
-
-#write out our clean data into a new file
+#write out clean data into a new file
 write_csv(sample_and_taxon, "data/sample_and_taxon.csv")
 
-#Quick Plot of Chloroflexi
-sample_and_Taxon %>%
-  ggplot(aes(x = depth, y = Chloroflwxi)) +
-  geom_point() +
-  #add a statistical model
+#quickplot of chloroflexi
+sample_and_taxon%>%
+  ggplot(aes(x=depth, y=Chloroflexi))+
+  geom_point()+
+  #add a statostical model
   geom_smooth()
