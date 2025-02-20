@@ -119,6 +119,8 @@ taxon_clean_goodSep<-
   #replace sample_id column with fixed september names
   mutate(sample_id= str_replace(sample_id, pattern="Sep", replacement = "September"))
 
+colnames(sample_taxon_long)
+
 #check dimensions
 dim(taxon_clean_goodSep)
 
@@ -140,3 +142,93 @@ sample_and_taxon%>%
   geom_point()+
   #add a statostical model
   geom_smooth()
+
+# Homework
+taxon_clean_goodSep_long <- taxon_clean_goodSep %>%
+  pivot_longer(cols = Proteobacteria:Cyanobacteria, 
+               names_to = "phylum", 
+               values_to = "abundance")
+
+# Check the structure of the new long-format data
+glimpse(taxon_clean_goodSep_long)
+colnames(sample_taxon_long)
+
+sample_taxon_long <- taxon_clean_goodSep_long %>%
+  inner_join(taxon_clean_goodSep, by = "sample_id")
+
+sample_taxon_long <- sample_taxon_long %>%
+  inner_join(sample_data, by = "sample_id")
+
+glimpse(sample_taxon_long)
+colnames(sample_taxon_long)
+
+
+filtered_data <- sample_taxon_long %>%
+  filter(phylum %in% c("Chloroflexi", "Cyanobacteria", "Bacteroidota"))
+
+
+# Create the faceted boxplot
+ggplot(filtered_data, aes(x = env_group, y = abundance, fill = env_group, color = env_group)) +
+  geom_boxplot(alpha = 0.5) +  
+  geom_jitter(width = 0.2, size = 2) + 
+  facet_grid(. ~ phylum) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  labs(
+    title = "Phylum Abundance Changes by Depth and Season",
+    x = "Depth and Season",
+    y = "Phylum Abundance"
+  )
+
+#ggsave("phylum_abundance_boxplot.png", width = 8, height = 4, dpi = 300)
+
+# Load necessary libraries
+library(tidyverse)
+if (!requireNamespace("ggpubr", quietly = TRUE)) install.packages("ggpubr")
+library(ggpubr)  # For statistical annotation
+
+# Perform Two-Way ANOVA
+anova_result <- aov(abundance ~ env_group * phylum, data = filtered_data)
+anova_summary <- summary(anova_result)
+
+# Convert ANOVA summary to dataframe for easier extraction
+anova_df <- as.data.frame(anova_summary[[1]])
+
+# Extract p-values and ensure proper formatting
+p_env_group <- formatC(anova_df$`Pr(>F)`[1], format = "e", digits = 2)  # p-value for env_group
+p_phylum <- formatC(anova_df$`Pr(>F)`[2], format = "e", digits = 2)  # p-value for phylum
+p_interaction <- formatC(anova_df$`Pr(>F)`[3], format = "e", digits = 2)  # p-value for interaction
+
+# Create the faceted boxplot with ANOVA results and store it in `p`
+p <- ggplot(filtered_data, aes(x = env_group, y = abundance, fill = env_group, color = env_group)) +
+  geom_boxplot(alpha = 0.5) +  
+  geom_jitter(width = 0.2, size = 2) + 
+  facet_grid(. ~ phylum) + 
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  labs(
+    title = "Phylum Abundance Changes by Depth and Season\nTwo-Way ANOVA Results",
+    x = "Depth and Season",
+    y = "Phylum Abundance"
+  ) +
+  annotate("text", x = 1.5, y = max(filtered_data$abundance), 
+           label = paste0("p (env_group) = ", p_env_group), size = 5, color = "black") +
+  annotate("text", x = 2, y = max(filtered_data$abundance) * 0.9, 
+           label = paste0("p (phylum) = ", p_phylum), size = 5, color = "black") +
+  annotate("text", x = 2.5, y = max(filtered_data$abundance) * 0.8, 
+           label = paste0("p (interaction) = ", p_interaction), size = 5, color = "black")
+
+# Explicitly print the plot (this enables zooming in RStudio)
+print(p)
+# Save as a high-quality PNG file
+ggsave("phylum_abundance_ANOVA.png", plot = p, width = 10, height = 6, dpi = 300)
+
+
